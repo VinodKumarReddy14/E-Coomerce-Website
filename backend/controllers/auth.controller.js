@@ -61,11 +61,36 @@ export const signup = async (req, res) => {
       message: "User created Successfully",
     });
   } catch (error) {
+    console.error("Error during Signup: ", error.message);
     res.status(500).json({ message: error.message });
   }
 };
 
-export const login = async (req, res) => {};
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (user && (await user.comparePassword(password))) {
+      //comparePassword method is defined in user.model.js
+      const { accessToken, refreshToken } = generateTokens(user._id);
+      await saveRefreshToken(`refreshToken:${user._id}`, refreshToken);
+      setCookies(res, accessToken, refreshToken);
+
+      res.status(200).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        message: "Logged-in Successfully",
+      });
+    } else {
+      res.status(400).json({ message: "Wrong Credentials" });
+    }
+  } catch (error) {
+    console.error("Error during Login: ", error.message);
+    res.status(500).json({ message: error.message });
+  }
+};
 
 export const logout = async (req, res) => {
   try {
@@ -93,6 +118,7 @@ export const logout = async (req, res) => {
 
     res.json({ message: "Logged out Successfully" });
   } catch (error) {
-    res.status(500).json({ message: "server error", error: error.message });
+    console.error("Error during Logout: ", error.message);
+    res.status(500).json({ message: error.message });
   }
 };
