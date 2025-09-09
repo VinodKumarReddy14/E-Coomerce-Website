@@ -13,7 +13,6 @@ const generateTokens = (userid) => {
 };
 
 const saveRefreshToken = async (userid, refreshToken) => {
-  console.log(refreshToken);
   await redis.set(
     `refresh_token:${userid}`,
     refreshToken,
@@ -23,14 +22,14 @@ const saveRefreshToken = async (userid, refreshToken) => {
 };
 
 const setCookies = (res, accessToken, refreshToken) => {
-  res.cookie("access-token", accessToken, {
+  res.cookie("accessToken", accessToken, {
     httpOnly: true, //prevent xss attack- cross site script attack.
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict", //prevent csrf attack- cross site request forgery attack.
     maxAge: 15 * 60 * 1000, //15 minutes
   });
 
-  res.cookie("refresh-token", refreshToken, {
+  res.cookie("refreshToken", refreshToken, {
     httpOnly: true, //prevent xss attack- cross site script attack.
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict", //prevent csrf attack- cross site request forgery attack.
@@ -52,17 +51,15 @@ export const signup = async (req, res) => {
     await saveRefreshToken(user._id, refreshToken);
     setCookies(res, accessToken, refreshToken);
 
-    res.status(200).json(
-      {
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
+    res.status(200).json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
       },
-      { message: "User created Successfully" }
-    );
+      message: "User created Successfully",
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -72,6 +69,30 @@ export const login = async (req, res) => {};
 
 export const logout = async (req, res) => {
   try {
-    const refreshToken = req.cookie.accessToken;
-  } catch (error) {}
+    const refreshToken = req.cookies.refreshToken;
+    if (refreshToken) {
+      const decoded = jwt.verify(
+        refreshToken,
+        process.env.REFRESH_TOKEN_SECRET
+      );
+      await redis.del(`refresh_token:${decoded.userid}`);
+    }
+
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
+
+    res.json({ message: "Logged out Successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "server error", error: error.message });
+  }
 };
